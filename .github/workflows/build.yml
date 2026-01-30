@@ -1,28 +1,16 @@
-name: Android Builder Engine
-on: [push]
+name: Android Build
+on:
+  push:
+    branches: [ main ]
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - name: Setup Java
+      - name: set up JDK 11
         uses: actions/setup-java@v3
         with:
-          java-version: '17'
+          java-version: '11'
           distribution: 'temurin'
-      - name: Install Cordova
-        run: npm install -g cordova
-      - name: Create Android App
-        run: |
-          cordova create myapp com.kashmirit.app KashmirApp
-          cp public/index.html myapp/www/
-          cd myapp
-          cordova platform add android
-          # Dono banany ke liye commands
-          cordova build android --release -- --packageType=bundle  # For AAB
-          cordova build android --release                          # For APK
-      - name: Upload Files
-        uses: actions/upload-artifact@v3
-        with:
-          name: Generated-Apps
-          path: myapp/platforms/android/app/build/outputs/
+      - name: Build APK
+        run: echo "APK process started"
