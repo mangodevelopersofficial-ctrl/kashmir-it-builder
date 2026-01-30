@@ -1,16 +1,22 @@
-name: Android Build
-on:
-  push:
-    branches: [ main ]
+name: Master Android Builder
+on: [push]
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - name: set up JDK 11
+      - name: Setup Java
         uses: actions/setup-java@v3
         with:
           java-version: '11'
           distribution: 'temurin'
       - name: Build APK
-        run: echo "APK process started"
+        run: |
+          npm install -g cordova
+          cordova platform add android
+          cordova build android --release
+      - name: Upload APK
+        uses: actions/upload-artifact@v3
+        with:
+          name: My-Kashmir-App
+          path: platforms/android/app/build/outputs/apk/release/*.apk
