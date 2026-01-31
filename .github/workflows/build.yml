@@ -10,13 +10,19 @@ jobs:
         with:
           java-version: '11'
           distribution: 'temurin'
-      - name: Build APK
+      - name: Build Android
         run: |
           npm install -g cordova
+          cordova create myapp com.kashmirit.app KashmirApp
+          cp public/index.html myapp/www/
+          cd myapp
           cordova platform add android
           cordova build android --release
-      - name: Upload APK
+          cordova build android --release -- --packageType=bundle
+      - name: Upload APK and AAB
         uses: actions/upload-artifact@v3
         with:
-          name: My-Kashmir-App
-          path: platforms/android/app/build/outputs/apk/release/*.apk
+          name: Kashmir-IT-Builds
+          path: |
+            myapp/platforms/android/app/build/outputs/apk/release/*.apk
+            myapp/platforms/android/app/build/outputs/bundle/release/*.aab
