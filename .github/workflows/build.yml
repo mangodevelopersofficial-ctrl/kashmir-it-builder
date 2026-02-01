@@ -4,13 +4,13 @@ on:
     inputs:
       app_name:
         description: 'App Name'
-        default: 'Mango App'
+        required: true
       package_name:
         description: 'Package ID'
-        default: 'com.mango.app'
+        required: true
       splash_time:
         description: 'Splash Time'
-        default: '3000'
+        required: true
 
 jobs:
   build:
@@ -19,39 +19,43 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Auto-Customize App
-        run: |
-          # 1. App Name badalna (strings.xml mein jo bhi ho usay replace karega)
-          sed -i "s/<string name=\"app_name\">.*<\/string>/<string name=\"app_name\">${{ github.event.inputs.app_name }}<\/string>/" app/src/main/res/values/strings.xml
-          
-          # 2. Package Name badalna
-          sed -i "s/applicationId \".*\"/applicationId \"${{ github.event.inputs.package_name }}\"/" app/build.gradle
-          
-          # 3. Splash Timer badalna (Java file mein)
-          find app/src/main/java -name "*.java" -exec sed -i "s/splash_delay = .*/splash_delay = ${{ github.event.inputs.splash_time }};/" {} +
-
-      - name: Inject Images (Icon & Splash)
-        run: |
-          # Agar dashboard ne files bheji hain to unhein sahi jagah copy karna
-          [ -f "icon.png" ] && cp icon.png app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
-          [ -f "splash.png" ] && cp splash.png app/src/main/res/drawable/splash_screen.png
-          [ -f "index.html" ] && cp index.html app/src/main/assets/index.html
-
-      - name: Setup Java & Build
+      - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Build APK
+      - name: Inject Custom Assets
         run: |
-          chmod +x gradlew
-          ./gradlew assembleRelease
+          # App Name Replacement (Strings.xml)
+          sed -i "s/<string name=\"app_name\">.*<\/string>/<string name=\"app_name\">${{ github.event.inputs.app_name }}<\/string>/" app/src/main/res/values/strings.xml
+          
+          # Package Name Replacement (build.gradle)
+          sed -i "s/applicationId \".*\"/applicationId \"${{ github.event.inputs.package_name }}\"/" app/build.gradle
+          
+          # Custom Icon & Splash (Dashboard se aayi hui files)
+          if [ -f "icon.png" ]; then
+            cp icon.png app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
+            cp icon.png app/src/main/res/mipmap-xxxhdpi/ic_launcher_round.png
+          fi
+          
+          if [ -f "splash.png" ]; then
+            cp splash.png app/src/main/res/drawable/splash_screen.png
+          fi
 
-      - name: Create Release (Direct Download)
-        uses: softprops/action-gh-release@v1
+          if [ -f "index.html" ]; then
+            mkdir -p app/src/main/assets
+            cp index.html app/src/main/assets/index.html
+          fi
+
+      - name: Grant Execute Permission
+        run: chmod +x gradlew
+
+      - name: Build with Gradle
+        run: ./gradlew assembleRelease
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
         with:
-          tag_name: v${{ github.run_number }}
-          files: app/build/outputs/apk/release/app-release.apk
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          name: ${{ github.event.inputs.app_name }}-Custom-APK
+          path: app/build/outputs/apk/release/app-release.apk
