@@ -1,4 +1,4 @@
-name: Mango Ultra Builder
+name: Mango Auto Builder
 on:
   workflow_dispatch:
     inputs:
@@ -8,9 +8,6 @@ on:
       package_name:
         description: 'Package ID'
         required: true
-      splash_time:
-        description: 'Splash Time'
-        required: true
 
 jobs:
   build:
@@ -19,64 +16,38 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Set up JDK 17
+      - name: Setup Java
         uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Preparation & Folders Fix
+      - name: Initialize Android Project
         run: |
-          # Agar folders nahi hain to bana do (Crash se bachne ke liye)
+          # Agar folders nahi hain to ye command unhe automatic bana degi
           mkdir -p app/src/main/res/mipmap-xxxhdpi
-          mkdir -p app/src/main/res/mipmap-hdpi
-          mkdir -p app/src/main/res/mipmap-mdpi
-          mkdir -p app/src/main/res/mipmap-xhdpi
-          mkdir -p app/src/main/res/mipmap-xxhdpi
           mkdir -p app/src/main/res/drawable
           mkdir -p app/src/main/assets
+          
+          # Dashboard se aayi hui files ko sahi jagah move karna
+          [ -f "icon.png" ] && cp icon.png app/src/main/res/mipmap-xxxhdpi/ic_launcher.png || echo "No icon"
+          [ -f "splash.png" ] && cp splash.png app/src/main/res/drawable/splash_screen.png || echo "No splash"
+          [ -f "index.html" ] && cp index.html app/src/main/assets/index.html || echo "No html"
 
-      - name: Inject Dashboard Assets
+      - name: Build with Gradle
+        # Note: Agar aapki repo mein gradlew file nahi hai, 
+        # to aapko ek basic android template add karni hogi.
         run: |
-          # 1. Update App Name (Strings.xml)
-          # Is line mein hum check karte hain file hai ya nahi
-          if [ -f "app/src/main/res/values/strings.xml" ]; then
-            sed -i "s/<string name=\"app_name\">.*<\/string>/<string name=\"app_name\">${{ github.event.inputs.app_name }}<\/string>/" app/src/main/res/values/strings.xml
-          fi
-          
-          # 2. Update Package ID (build.gradle)
-          sed -i "s/applicationId \".*\"/applicationId \"${{ github.event.inputs.package_name }}\"/" app/build.gradle
-
-          # 3. Icon replacement (Sare sizes ke liye)
-          if [ -f "icon.png" ]; then
-            cp icon.png app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
-            cp icon.png app/src/main/res/mipmap-xxhdpi/ic_launcher.png
-            cp icon.png app/src/main/res/mipmap-xhdpi/ic_launcher.png
-            cp icon.png app/src/main/res/mipmap-hdpi/ic_launcher.png
-            cp icon.png app/src/main/res/mipmap-mdpi/ic_launcher.png
-            echo "✅ Icons replaced successfully"
-          fi
-          
-          # 4. Splash Screen replacement
-          if [ -f "splash.png" ]; then
-            cp splash.png app/src/main/res/drawable/splash_screen.png
-            echo "✅ Splash replaced successfully"
+          if [ -f "gradlew" ]; then
+            chmod +x gradlew
+            ./gradlew assembleRelease
+          else
+            echo "❌ ERROR: Android project files (gradlew) missing in repo!"
+            exit 1
           fi
 
-          # 5. HTML Code replacement
-          if [ -f "index.html" ]; then
-            cp index.html app/src/main/assets/index.html
-            echo "✅ HTML updated"
-          fi
-
-      - name: Grant Permissions
-        run: chmod +x gradlew
-
-      - name: Build APK (Release)
-        run: ./gradlew assembleRelease
-
-      - name: Upload Finished APK
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ github.event.inputs.app_name }}-v1
+          name: ${{ github.event.inputs.app_name }}
           path: app/build/outputs/apk/release/*.apk
