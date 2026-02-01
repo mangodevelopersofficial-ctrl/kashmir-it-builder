@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>MagoCharge - EV Pro Edition</title>
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.css" />
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;800&display=swap" rel="stylesheet">
+    
+    <style>
+        :root { --primary: #FFC107; --dark: #121212; --white: #ffffff; --grey: #f8f9fa; }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Plus Jakarta Sans', sans-serif; }
+        body, html { height: 100%; width: 100%; overflow: hidden; background: var(--white); }
+
+        .screen { display: none; height: calc(100vh - 70px); width: 100%; position: absolute; top: 0; overflow-y: auto; background: var(--white); }
+        .active-screen { display: block; }
+
+        /* HEADER UI */
+        .top-ui { position: absolute; top: env(safe-area-inset-top, 10px); width: 100%; z-index: 2000; padding: 10px; pointer-events: none; }
+        .header-content { display: flex; flex-direction: column; gap: 8px; pointer-events: auto; width: 100%; }
+        .search-row { display: flex; align-items: center; gap: 8px; width: 100%; }
+        .top-profile-img { width: 45px; height: 45px; border-radius: 12px; border: 2.5px solid var(--primary); object-fit: cover; flex-shrink: 0; background: white; cursor: pointer;}
+        .search-box { display: flex; flex: 1; gap: 6px; min-width: 0; position: relative; }
+        .search-input { flex: 1; min-width: 0; background: var(--white); padding: 12px; border-radius: 12px; border: none; box-shadow: 0 4px 15px rgba(0,0,0,0.1); outline: none; font-size: 14px; pointer-events: auto;}
+        
+        /* RECOMMENDATION LIST */
+        #suggestions { position: absolute; top: 55px; left: 0; right: 0; background: white; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); max-height: 200px; overflow-y: auto; z-index: 3000; display: none; }
+        .suggestion-item { padding: 12px 15px; border-bottom: 1px solid #eee; font-size: 13px; cursor: pointer; color: var(--dark); }
+        .suggestion-item:last-child { border: none; }
+
+        .icon-btn { background: var(--primary); border: none; width: 45px; height: 45px; border-radius: 12px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; cursor: pointer; pointer-events: auto;}
+
+        /* PROFILE STYLES */
+        .profile-card { padding: 30px 20px; text-align: center; background: linear-gradient(180deg, #fff 0%, var(--grey) 100%); }
+        .profile-main-img { width: 110px; height: 110px; border-radius: 30px; border: 4px solid var(--primary); object-fit: cover; margin-bottom: 15px; box-shadow: 0 10px 20px rgba(0,0,0,0.1); }
+        .menu-list { padding: 10px 20px; }
+        .menu-item { display: flex; align-items: center; gap: 15px; padding: 18px; background: var(--grey); border-radius: 15px; margin-bottom: 10px; cursor: pointer; transition: 0.2s; }
+        .menu-item:active { transform: scale(0.98); background: #eee; }
+        .menu-icon { width: 40px; height: 40px; background: white; border-radius: 10px; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+
+        /* MODAL */
+        .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 3000; display: none; align-items: flex-end; }
+        .modal-content { background: var(--white); width: 100%; border-radius: 30px 30px 0 0; padding: 25px; pointer-events: auto; max-height: 80vh; overflow-y: auto;}
+        .chip { padding: 10px 15px; border: 1px solid #eee; border-radius: 12px; font-size: 12px; font-weight: 700; cursor: pointer; display: inline-block; margin: 4px; }
+        .chip.active { background: var(--primary); border-color: var(--primary); }
+
+        /* BOTTOM NAV */
+        .bottom-nav { position: fixed; bottom: 0; width: 100%; height: 70px; background: var(--white); display: flex; justify-content: space-around; align-items: center; box-shadow: 0 -2px 15px rgba(0,0,0,0.05); z-index: 2000; }
+        .nav-item { display: flex; flex-direction: column; align-items: center; color: #bdbdbd; cursor: pointer; font-size: 11px; font-weight: 700; flex:1; }
+        .nav-item.active { color: var(--dark); border-top: 3px solid var(--primary); padding-top: 5px; }
+        .nav-item svg { width: 24px; height: 24px; fill: currentColor; margin-bottom: 4px; }
+
+        #map { height: 100%; width: 100%; z-index: 1; }
+        .mango-loc-btn { position: absolute; bottom: 90px; right: 20px; z-index: 2000; background: var(--dark); width: 55px; height: 55px; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 2px solid var(--primary); pointer-events: auto; }
+        #nav-info { position: absolute; top: 80px; left: 15px; right: 15px; background: var(--dark); color: white; padding: 15px; border-radius: 15px; z-index: 2500; display: none; justify-content: space-between; align-items: center; }
+
+        .leaflet-routing-container { display: none !important; }
+        .connector-badge { background: #eee; font-size: 10px; padding: 2px 8px; border-radius: 6px; font-weight: 800; display: inline-block; margin-top: 4px; text-transform: uppercase; }
+        
+        .car-marker-icon { filter: drop-shadow(0 4px 8px rgba(0,0,0,0.3)); }
+    </style>
+</head>
+<body>
+
+    <div id="nav-info">
+        <div><span id="live-dist" style="font-size: 18px; font-weight: 800; color: var(--primary);">0.0 km</span><p id="live-time" style="font-size: 12px;">Calculating...</p></div>
+        <button onclick="stopNav()" style="background:red; color:white; border:none; padding:8px 15px; border-radius:10px; font-weight:800;">EXIT</button>
+    </div>
+
+    <div id="home-tab" class="screen active-screen">
+        <div class="top-ui">
+            <div class="header-content">
+                <div class="search-row">
+                    <img id="topUserImg" src="https://ui-avatars.com/api/?name=User&background=FFC107" class="top-profile-img" onclick="tab('profile-tab', document.querySelectorAll('.nav-item')[2])">
+                    <div class="search-box">
+                        <input type="text" id="cityInput" class="search-input" placeholder="Search City..." oninput="handleCityInput(this.value)">
+                        <div id="suggestions"></div>
+                        <button class="icon-btn" onclick="searchCity()"><svg viewBox="0 0 24 24" width="20" height="20" fill="black"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg></button>
+                        <button class="icon-btn" onclick="toggleModal(true, 'filterModal')"><svg viewBox="0 0 24 24" width="20" height="20" fill="black"><path d="M3 17v2h6v-2H3zM3 5v2h10V5H3zm10 16v-2h8v-2h-8v-2h-2v6h2zM7 9v2H3v2h4v2h2V9H7zm14 4v-2H11v2h10zm-6-4h2V7h4V5h-4V3h-2v6z"/></svg></button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="mango-loc-btn" onclick="focusUser()"><svg viewBox="0 0 24 24" width="30" height="30" fill="#FFC107"><path d="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71z"/></svg></div>
+        <div id="map"></div>
+    </div>
+
+    <div id="nearby-tab" class="screen">
+        <div style="padding:20px; background:white; position:sticky; top:0; z-index:10; border-bottom:1px solid #eee;">
+            <h2 style="font-weight:800;" id="nearby-title">Nearby Stations</h2>
+        </div>
+        <div id="stList"></div>
+    </div>
+
+    <div id="profile-tab" class="screen">
+        <div class="profile-card">
+            <div style="position:relative; width:110px; margin: 0 auto;">
+                <img id="userImg" src="https://ui-avatars.com/api/?name=User&background=FFC107" class="profile-main-img">
+                <input type="file" id="pInput" hidden accept="image/*" onchange="updateProfilePic(this)">
+                <div onclick="document.getElementById('pInput').click()" style="position:absolute; bottom:15px; right:0; background:var(--dark); width:32px; height:32px; border-radius:50%; display:flex; align-items:center; justify-content:center; border:2px solid white;"><svg viewBox="0 0 24 24" width="16" fill="white"><path d="M3 4V1h2v3h3v2H5v3H3V6H0V4h3zm3 6V7h3V4h7l1.83 2H21c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H5c-1.1 0-2-.9-2-2V10h3z"/></svg></div>
+            </div>
+            <h2 style="font-weight:800;">Mago Driver</h2>
+            <p style="color:gray; font-size:12px;">Premium Member</p>
+        </div>
+
+        <div class="menu-list">
+            <div class="menu-item" onclick="alert('FAQs Loading...')">
+                <div class="menu-icon">❓</div>
+                <div style="flex:1"><b>FAQ</b><br><small style="color:gray;">Common questions</small></div>
+            </div>
+            <div class="menu-item" onclick="alert('Help Center Loading...')">
+                <div class="menu-icon">🎧</div>
+                <div style="flex:1"><b>Help Center</b><br><small style="color:gray;">Get technical help</small></div>
+            </div>
+            <div class="menu-item" onclick="window.location.href='mailto:support@magocharge.com'">
+                <div class="menu-icon">📧</div>
+                <div style="flex:1"><b>Support</b><br><small style="color:gray;">Contact us via email</small></div>
+            </div>
+            <div class="menu-item" style="margin-top:20px; background:#ffebee;" onclick="alert('Logged Out')">
+                <div class="menu-icon" style="background:white;">🚪</div>
+                <div style="flex:1; color:red;"><b>Logout</b></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal" id="filterModal" onclick="if(event.target==this) toggleModal(false, 'filterModal')">
+        <div class="modal-content">
+            <h3 style="font-weight:800; margin-bottom:10px;">Search Radius</h3>
+            <div style="margin-bottom:15px;">
+                <div class="chip" onclick="setRad(10, this)">10 KM</div>
+                <div class="chip active" onclick="setRad(30, this)">30 KM</div>
+                <div class="chip" onclick="setRad(100, this)">100 KM</div>
+            </div>
+            <h3 style="font-weight:800; margin-bottom:10px;">Connector Type</h3>
+            <div style="margin-bottom:20px;">
+                <div class="chip active" onclick="updateFilter(this, 'All')">All</div>
+                <div class="chip" onclick="updateFilter(this, 'Type 1')">Type 1</div>
+                <div class="chip" onclick="updateFilter(this, 'Type 2')">Type 2</div>
+                <div class="chip" onclick="updateFilter(this, 'CCS 1')">CCS 1</div>
+                <div class="chip" onclick="updateFilter(this, 'CCS 2')">CCS 2</div>
+                <div class="chip" onclick="updateFilter(this, 'CHAdeMO')">CHAdeMO</div>
+                <div class="chip" onclick="updateFilter(this, 'Tesla')">Tesla</div>
+                <div class="chip" onclick="updateFilter(this, 'GB/T')">GB/T</div>
+            </div>
+            <button onclick="toggleModal(false, 'filterModal')" style="width:100%; background:var(--primary); border:none; padding:16px; border-radius:15px; font-weight:800;">APPLY FILTER</button>
+        </div>
+    </div>
+
+    <div class="bottom-nav">
+        <div class="nav-item active" onclick="tab('home-tab', this)"><svg viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>Home</div>
+        <div class="nav-item" onclick="tab('nearby-tab', this)"><svg viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5z"/></svg>Nearby</div>
+        <div class="nav-item" onclick="tab('profile-tab', this)"><svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/></svg>Profile</div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.js"></script>
+
+    <script>
+        const API_KEY = '01c10a01-ac7d-490f-837d-719370092963';
+        const INTERSTITIAL_ID = 'ca-app-pub-3940256099942544/1033173712'; 
+        
+        let map, uLat, uLng, markers = [], route, rad = 30, userMarker = null, selectedConnector = 'All';
+
+        const carIconHTML = `<div class="car-marker-icon"><svg width="50" height="50" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="20" y="30" width="60" height="50" rx="15" fill="#FFC107" stroke="#000" stroke-width="2"/><rect x="30" y="40" width="40" height="30" rx="8" fill="#333"/><rect x="35" y="45" width="30" height="20" rx="4" fill="#88E1FF"/><circle cx="30" cy="35" r="5" fill="#FFF" opacity="0.9"/><circle cx="70" cy="35" r="5" fill="#FFF" opacity="0.9"/><rect x="15" y="40" width="8" height="15" rx="2" fill="#222"/><rect x="77" y="40" width="8" height="15" rx="2" fill="#222"/><rect x="15" y="65" width="8" height="15" rx="2" fill="#222"/><rect x="77" y="65" width="8" height="15" rx="2" fill="#222"/></svg></div>`;
+
+        function init() {
+            showInterstitialAd();
+            map = L.map('map', { zoomControl: false }).setView([30.37, 69.34], 5);
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png').addTo(map);
+
+            navigator.geolocation.watchPosition(p => {
+                uLat = p.coords.latitude; uLng = p.coords.longitude;
+                updateUserIcon();
+                if(route) map.panTo([uLat, uLng]);
+            }, null, { enableHighAccuracy: true });
+
+            const savedImg = localStorage.getItem('magoUserImg');
+            if(savedImg) { document.getElementById('userImg').src = savedImg; document.getElementById('topUserImg').src = savedImg; }
+            
+            // Close suggestions when clicking outside
+            document.addEventListener('click', (e) => {
+                if(!e.target.closest('.search-box')) document.getElementById('suggestions').style.display = 'none';
+            });
+        }
+
+        async function handleCityInput(val) {
+            const sugBox = document.getElementById('suggestions');
+            if(val.length < 3) { sugBox.style.display = 'none'; return; }
+            
+            try {
+                const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${val}&limit=5`);
+                const data = await res.json();
+                sugBox.innerHTML = "";
+                if(data.length > 0) {
+                    sugBox.style.display = 'block';
+                    data.forEach(item => {
+                        const div = document.createElement('div');
+                        div.className = "suggestion-item";
+                        div.innerText = item.display_name;
+                        div.onclick = () => {
+                            document.getElementById('cityInput').value = item.display_name;
+                            uLat = parseFloat(item.lat);
+                            uLng = parseFloat(item.lon);
+                            sugBox.style.display = 'none';
+                            map.setView([uLat, uLng], 12);
+                            loadSt();
+                        };
+                        sugBox.appendChild(div);
+                    });
+                } else { sugBox.style.display = 'none'; }
+            } catch(e) { console.log(e); }
+        }
+
+        async function searchCity() {
+            const city = document.getElementById('cityInput').value;
+            if(!city) return;
+            const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${city}&limit=1`);
+            const data = await res.json();
+            if(data[0]) { 
+                uLat = parseFloat(data[0].lat); 
+                uLng = parseFloat(data[0].lon); 
+                map.setView([uLat, uLng], 12); 
+                loadSt(); 
+            }
+        }
+
+        async function loadSt() {
+            if(!uLat) return;
+            // Updated API call with maxresults=500 and dynamic radius
+            const res = await fetch(`https://api.openchargemap.io/v3/poi/?output=json&latitude=${uLat}&longitude=${uLng}&distance=${rad}&distanceunit=KM&maxresults=500&key=${API_KEY}`);
+            const data = await res.json();
+            
+            markers.forEach(m => map.removeLayer(m)); 
+            markers = [];
+            const list = document.getElementById('stList'); 
+            list.innerHTML = "";
+
+            let foundCount = 0;
+            data.forEach(s => {
+                const conn = s.Connections[0]?.ConnectionType?.Title || "Universal";
+                if (selectedConnector !== 'All' && !conn.includes(selectedConnector)) return;
+                
+                foundCount++;
+                const icon = L.divIcon({ className: '', html: '<div style="background:var(--primary);width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;border:2px solid white;box-shadow:0 2px 5px rgba(0,0,0,0.2);"><svg viewBox="0 0 24 24" width="18" fill="black"><path d="M7 2v11h3v9l7-12h-4l4-8z"/></svg></div>', iconSize: [30, 30] });
+                const m = L.marker([s.AddressInfo.Latitude, s.AddressInfo.Longitude], {icon}).addTo(map);
+                markers.push(m);
+                
+                list.innerHTML += `<div style="padding:15px; margin:10px; background:#f9f9f9; border-radius:15px; border:1px solid #eee;">
+                    <div style="display:flex; justify-content:space-between; align-items:start;">
+                        <h4 style="font-size:14px; flex:1;">${s.AddressInfo.Title}</h4>
+                        <span class="connector-badge">${conn}</span>
+                    </div>
+                    <p style="font-size:11px; color:gray; margin-top:5px;">${s.AddressInfo.Distance.toFixed(1)} km away</p>
+                    <button onclick="startNav(${s.AddressInfo.Latitude}, ${s.AddressInfo.Longitude})" style="width:100%; margin-top:10px; background:var(--dark); color:var(--primary); border:none; padding:10px; border-radius:10px; font-weight:800;">NAVIGATE</button>
+                </div>`;
+            });
+            document.getElementById('nearby-title').innerText = `Nearby Stations (${foundCount})`;
+        }
+
+        // Functions below (updateUserIcon, stopNav, tab, etc.) remain unchanged
+        function updateUserIcon() {
+            if(!uLat) return;
+            const iconContent = route ? carIconHTML : '<div style="width:20px;height:20px;background:#2196F3;border:3px solid white;border-radius:50%;box-shadow:0 0 10px rgba(0,0,0,0.3);"></div>';
+            const iconSize = route ? [50, 50] : [20, 20];
+            if(!userMarker) {
+                userMarker = L.marker([uLat, uLng], {icon: L.divIcon({ className:'', html: iconContent, iconSize: iconSize})}).addTo(map);
+                map.setView([uLat, uLng], 14); loadSt();
+            } else { 
+                userMarker.setLatLng([uLat, uLng]); 
+                userMarker.setIcon(L.divIcon({ className:'', html: iconContent, iconSize: iconSize}));
+            }
+        }
+        function updateProfilePic(input) {
+            if (input.files && input.files[0]) {
+                const reader = new FileReader();
+                reader.onload = e => {
+                    const img = e.target.result;
+                    document.getElementById('userImg').src = img;
+                    document.getElementById('topUserImg').src = img;
+                    localStorage.setItem('magoUserImg', img);
+                };
+                reader.readAsDataURL(input.files[0]);
+            }
+        }
+        function showInterstitialAd() { if (typeof admob !== 'undefined') { admob.interstitial.load({ id: INTERSTITIAL_ID }).then(() => admob.interstitial.show()).catch(e => console.log(e)); } }
+        function updateFilter(el, type) { el.parentElement.querySelectorAll('.chip').forEach(c => c.classList.remove('active')); el.classList.add('active'); selectedConnector = type; loadSt(); }
+        function startNav(lat, lng) {
+            tab('home-tab', document.querySelector('.nav-item'));
+            if(route) map.removeControl(route);
+            route = L.Routing.control({
+                waypoints: [L.latLng(uLat, uLng), L.latLng(lat, lng)],
+                lineOptions: { styles: [{ color: '#FFC107', weight: 7 }] },
+                createMarker: (i, wp) => { if (i === 1) return L.marker(wp.latLng); return null; },
+                addWaypoints: false, show: false, collapsible: true
+            }).addTo(map);
+            updateUserIcon();
+            route.on('routesfound', e => {
+                document.getElementById('nav-info').style.display = 'flex';
+                document.getElementById('live-dist').innerText = (e.routes[0].summary.totalDistance/1000).toFixed(1) + " km";
+                document.getElementById('live-time').innerText = Math.round(e.routes[0].summary.totalTime/60) + " mins";
+            });
+        }
+        function toggleModal(show, id) { document.getElementById(id).style.display = show ? 'flex' : 'none'; }
+        function setRad(v, el) { rad = v; document.querySelectorAll('#filterModal .chip').forEach(c => { if(c.innerText.includes('KM')) c.classList.remove('active'); }); el.classList.add('active'); loadSt(); }
+        function stopNav() { if(route) map.removeControl(route); route = null; document.getElementById('nav-info').style.display = 'none'; updateUserIcon(); }
+        function focusUser() { if(uLat) map.flyTo([uLat, uLng], 16); }
+        function tab(id, el) { document.querySelectorAll('.screen').forEach(s => s.classList.remove('active-screen')); document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active')); document.getElementById(id).classList.add('active-screen'); el.classList.add('active'); }
+        
+        window.onload = init;
+    </script>
+</body>
+</html>
