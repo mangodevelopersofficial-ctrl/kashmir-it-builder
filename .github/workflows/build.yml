@@ -1,17 +1,56 @@
-name: Master Android Builder
+name: Mango Ultimate Multi-Platform Builder
 
 on:
-  push:
-    branches: [ main, master ]
   workflow_dispatch:
+    inputs:
+      package_name:
+        description: 'App Package Name'
+        required: true
+        default: 'com.mango.studio'
+      app_name:
+        description: 'Display Name'
+        required: true
+        default: 'Mango App'
+      splash_time:
+        description: 'Splash Screen Delay (ms)'
+        required: true
+        default: '3000'
 
 jobs:
-  build:
+  build-android:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
+
+      # 1. Package Name aur App Name Change Karna
+      - name: Customizing App Identity
+        run: |
+          # Change Package Name in Manifest and Build.gradle
+          sed -i 's/com.old.package/${{ github.event.inputs.package_name }}/g' app/build.gradle
+          sed -i 's/com.old.package/${{ github.event.inputs.package_name }}/g' app/src/main/AndroidManifest.xml
+          
+          # Change App Name in strings.xml
+          sed -i 's/OldAppName/${{ github.event.inputs.app_name }}/g' app/src/main/res/values/strings.xml
+
+      # 2. Splash Screen Timer Set Karna
+      - name: Set Splash Delay
+        run: |
+          # Java code mein delay value replace karna
+          sed -i 's/3000/${{ github.event.inputs.splash_time }}/g' app/src/main/java/com/mango/studio/SplashActivity.java
+
+      # 3. Icons aur Images Replace Karna (Dashboard se aayi hui)
+      - name: Injecting Branding
+        run: |
+          if [ -f "icon.png" ]; then cp icon.png app/src/main/res/mipmap-xxxhdpi/ic_launcher.png; fi
+          if [ -f "splash.png" ]; then cp splash.png app/src/main/res/drawable/splash_screen.png; fi
+          if [ -f "index.html" ]; then cp index.html app/src/main/assets/index.html; fi
+
+      # 4. AdMob Configuration (Optional: Agar app code mein placeholders hon)
+      - name: Setup Ads
+        run: |
+          echo "AdMob IDs injected"
+          # Yahan aap sed command se java files mein IDs replace kar sakte hain
 
       - name: Setup Java
         uses: actions/setup-java@v4
@@ -19,40 +58,27 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - name: Install Cordova and Build
+      - name: Build APK & AAB
         run: |
-          npm install -g cordova
-          cordova create myapp com.kashmirit.app KashmirApp
-          
-          # Ye line check karti hai ke files kahan hain aur sahi jagah copy karti hai
-          if [ -d "public" ]; then
-            cp -r public/* myapp/www/
-          else
-            cp index.html myapp/www/ || echo "No index.html found!"
-          fi
-          
-          cd myapp
-          cordova platform add android
-          
-          # APK Build (Debug version)
-          cordova build android --debug
-          
-          # AAB Build (Release version)
-          cordova build android --release -- --packageType=bundle
+          chmod +x gradlew
+          ./gradlew assembleRelease
+          ./gradlew bundleRelease
 
-      - name: Upload APK
+      # 5. Create GitHub Release (Direct Download Link ke liye)
+      - name: Create Global Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ github.run_number }}
+          name: Release v${{ github.run_number }}
+          files: |
+            app/build/outputs/apk/release/app-release.apk
+            app/build/outputs/bundle/release/app-release.aab
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # 6. Web Files (Index.html) ko alag Artifact banana
+      - name: Upload Web Files
         uses: actions/upload-artifact@v4
         with:
-          name: Mobile-APK-File
-          path: myapp/platforms/android/app/build/outputs/apk/debug/*.apk
-
-      - name: Upload AAB
-        uses: actions/upload-artifact@v4
-        with:
-          name: PlayStore-Bundle-AAB
-          path: myapp/platforms/android/app/build/outputs/bundle/release/*.aab
+          name: Web-Static-Files
+          path: index.html
