@@ -22,32 +22,23 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Initialize Android Project
+      - name: Check Project Structure
         run: |
-          # Agar folders nahi hain to ye command unhe automatic bana degi
-          mkdir -p app/src/main/res/mipmap-xxxhdpi
-          mkdir -p app/src/main/res/drawable
-          mkdir -p app/src/main/assets
-          
-          # Dashboard se aayi hui files ko sahi jagah move karna
-          [ -f "icon.png" ] && cp icon.png app/src/main/res/mipmap-xxxhdpi/ic_launcher.png || echo "No icon"
-          [ -f "splash.png" ] && cp splash.png app/src/main/res/drawable/splash_screen.png || echo "No splash"
-          [ -f "index.html" ] && cp index.html app/src/main/assets/index.html || echo "No html"
-
-      - name: Build with Gradle
-        # Note: Agar aapki repo mein gradlew file nahi hai, 
-        # to aapko ek basic android template add karni hogi.
-        run: |
-          if [ -f "gradlew" ]; then
-            chmod +x gradlew
-            ./gradlew assembleRelease
-          else
-            echo "❌ ERROR: Android project files (gradlew) missing in repo!"
+          if [ ! -f "build.gradle" ] && [ ! -f "app/build.gradle" ]; then
+            echo "❌ ERROR: Android Source Code missing! Please upload your Android project files first."
             exit 1
           fi
 
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ github.event.inputs.app_name }}
-          path: app/build/outputs/apk/release/*.apk
+      - name: Inject Assets
+        run: |
+          mkdir -p app/src/main/res/mipmap-xxxhdpi
+          mkdir -p app/src/main/res/drawable
+          mkdir -p app/src/main/assets
+          [ -f "icon.png" ] && cp icon.png app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
+          [ -f "splash.png" ] && cp splash.png app/src/main/res/drawable/splash_screen.png
+          [ -f "index.html" ] && cp index.html app/src/main/assets/index.html
+
+      - name: Build APK
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleRelease
