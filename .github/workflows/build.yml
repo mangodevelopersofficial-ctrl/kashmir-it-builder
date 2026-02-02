@@ -1,4 +1,4 @@
-name: Mango Auto Builders
+name: Mango Ultimate Engine
 on:
   workflow_dispatch:
     inputs:
@@ -8,31 +8,46 @@ on:
       package_name:
         description: 'Package ID'
         required: true
+      web_url:
+        description: 'Website URL'
+        required: false
+      splash_time:
+        description: 'Splash Screen Duration'
+        required: false
+        default: '3000'
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Code
+      - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Create Structure & Inject Assets
+      - name: Inject Dashboard Data
         run: |
-          # Create Android folders automatically
-          mkdir -p app/src/main/res/mipmap-xxxhdpi
-          mkdir -p app/src/main/res/drawable
-          mkdir -p app/src/main/res/values
+          # Folders create karna
           mkdir -p app/src/main/assets
+          mkdir -p app/src/main/res/values
+          mkdir -p app/src/main/res/mipmap-hdpi
 
-          # Move files from root to Android structure
-          [ -f "icon.png" ] && cp icon.png app/src/main/res/mipmap-xxxhdpi/ic_launcher.png || echo "Default icon"
-          [ -f "index.html" ] && cp index.html app/src/main/assets/index.html || echo "Default HTML"
+          # 1. Name & Package Injection
+          echo "<?xml version='1.0' encoding='utf-8'?><resources><string name='app_name'>${{ github.event.inputs.app_name }}</string></resources>" > app/src/main/res/values/strings.xml
           
-          # Create strings.xml for App Name
-          echo '<?xml version="1.0" encoding="utf-8"?><resources><string name="app_name">${{ github.event.inputs.app_name }}</string></resources>' > app/src/main/res/values/strings.xml
+          # 2. Icon aur Splash copy karna (Agar Dashboard se upload huye hon)
+          [ -f "icon.png" ] && cp -f icon.png app/src/main/res/mipmap-hdpi/ic_launcher.png
+          [ -f "splash.png" ] && cp -f splash.png app/src/main/assets/splash.png
+          [ -f "index.html" ] && cp -f index.html app/src/main/assets/index.html
 
-      - name: Final Verification
+          echo "Build configured for ${{ github.event.inputs.app_name }}"
+
+      - name: Generate APK
         run: |
-          echo "Building App: ${{ github.event.inputs.app_name }}"
-          echo "Package ID: ${{ github.event.inputs.package_name }}"
-          ls -R app/src/main/
+          mkdir -p output
+          # Asli compilation command yahan aayegi
+          echo "APK Generated with Name: ${{ github.event.inputs.app_name }}" > output/app-release.apk
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ github.event.inputs.app_name }}-APK
+          path: output/
