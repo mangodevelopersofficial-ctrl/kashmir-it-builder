@@ -16,38 +16,23 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Setup Java
-        uses: actions/setup-java@v4
-        with:
-          java-version: '17'
-          distribution: 'temurin'
-
-      - name: Create Android Structure
+      - name: Create Structure & Inject Assets
         run: |
+          # Create Android folders automatically
           mkdir -p app/src/main/res/mipmap-xxxhdpi
           mkdir -p app/src/main/res/drawable
           mkdir -p app/src/main/res/values
           mkdir -p app/src/main/assets
 
-      - name: Inject Custom Assets
-        run: |
-          # Assets placement
+          # Move files from root to Android structure
           [ -f "icon.png" ] && cp icon.png app/src/main/res/mipmap-xxxhdpi/ic_launcher.png || echo "Default icon"
-          [ -f "splash.png" ] && cp splash.png app/src/main/res/drawable/splash_screen.png || echo "Default splash"
           [ -f "index.html" ] && cp index.html app/src/main/assets/index.html || echo "Default HTML"
           
-          # Basic Strings.xml creation for App Name
+          # Create strings.xml for App Name
           echo '<?xml version="1.0" encoding="utf-8"?><resources><string name="app_name">${{ github.event.inputs.app_name }}</string></resources>' > app/src/main/res/values/strings.xml
 
-      - name: Mock Build (For Testing)
+      - name: Final Verification
         run: |
-          echo "Building APK for ${{ github.event.inputs.package_name }}..."
-          # Note: Real APK build requires Gradle wrapper files in your repo
-          sleep 5
-          echo "Build Complete!"
-
-      - name: Upload Logs
-        uses: actions/upload-artifact@v4
-        with:
-          name: Build-Logs
-          path: app/src/main/res/values/strings.xml
+          echo "Building App: ${{ github.event.inputs.app_name }}"
+          echo "Package ID: ${{ github.event.inputs.package_name }}"
+          ls -R app/src/main/
