@@ -1,4 +1,4 @@
-name: Mango Auto Builder
+name: Mango Auto Builders
 on:
   workflow_dispatch:
     inputs:
